@@ -24,7 +24,7 @@ include_directories(${BANG_ROOT}/include/Bang/BangGraphics)
 include_directories(${BANG_ROOT}/include/Bang/BangPreprocessor)
 
 link_directories(${BANG_ROOT}/bin/Debug/lib)
-link_libraries("Bang")
+link_libraries("Bangd")
 
 add_executable(BangFontDistField
 Main.cpp

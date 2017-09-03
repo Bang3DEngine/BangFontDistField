@@ -29,15 +29,12 @@ int main(int argc, char **argv)
     app.CreateWindow();
 
     constexpr int inputCharSize = 512;
-    constexpr int radius = inputCharSize / 2;
-    constexpr int outputCharSize = 64;
+    constexpr int radius = inputCharSize / 4;
+    constexpr int outputCharSize = 128;
     String chars = "";
-    chars += "A";
-    /*
     chars += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     chars += "abcdefghijklmnopqrstuvwxyz";
     chars += "012345689.,-;:_^-+*[]{}()?¿¡!%&/\\=>< ";
-    */
 
     const GL::Attachment color0 = GL::Attachment::Color0;
     const GL::Attachment color1 = GL::Attachment::Color1;
@@ -65,31 +62,26 @@ int main(int argc, char **argv)
         Vector2i charSize(charBitmap->GetWidth(), charBitmap->GetHeight());
 
         G_Framebuffer framebuffer(charSize.x, charSize.y);
+        framebuffer.Bind();
         framebuffer.CreateColorAttachment(GL::Attachment::Color0,
                                           GL::ColorFormat::RGBA_Float32);
-        framebuffer.Bind();
+        framebuffer.CreateColorAttachment(GL::Attachment::Color1,
+                                          GL::ColorFormat::RGBA_Float32);
         framebuffer.SetAllDrawBuffers();
 
-        Texture2D distField1;
-        distField1.Fill(Color::Zero, charSize.x, charSize.y);
-
-        Texture2D distField2;
-        distField2.CreateEmpty(charSize.x, charSize.y);
-
-        G_Image charBitmapImg = charBitmap->ToImage(false);
-        charBitmapImg.SaveToFile( Path("FontAtlas.png") );
-
         G_Image charOutlineImg;
+        G_Image charBitmapImg = charBitmap->ToImage(false);
         ImageEffects::Outline(charBitmapImg, &charOutlineImg);
 
         Texture2D charOutline;
         charOutline.LoadFromImage(charOutlineImg);
-        charOutlineImg.SaveToFile( Path("Outline.png") );
+        charOutlineImg.Export( Path("Outline.png") );
 
         framebuffer.ClearColor(Color::Zero);
 
         // First pass
         G_ShaderProgram *spFirstPass = new G_ShaderProgram();
+        framebuffer.SetDrawBuffers(colorArr0);
         spFirstPass->Load( Path("pass.vert"), Path("firstPass.frag") );
         spFirstPass->Bind();
         spFirstPass->Set("ImgSize", Vector2(charBitmapImg.GetSize()));
@@ -105,37 +97,42 @@ int main(int argc, char **argv)
         spPass.Bind();
         spPass.Set("ImgSize", Vector2(charBitmapImg.GetSize()));
         spPass.Set("OutlineTex", &charOutline);
-        spPass.Set("PassStep", 1.0f / radius);
         for (int i = 0; i < radius; ++i)
         {
             framebuffer.SetDrawBuffers(pingPong ? colorArr0 : colorArr1);
             spPass.Set("DistField", pingPong ? framebuffer.GetAttachmentTexture(color1) :
                                                framebuffer.GetAttachmentTexture(color0));
             DoPass();
-
             pingPong = !pingPong;
         }
         spPass.UnBind();
 
         G_RenderTexture *charDistFieldTex = framebuffer.GetAttachmentTexture(
                     framebuffer.GetCurrentDrawAttachments().Front());
-        G_Image charDistFieldImg = charDistFieldTex->ToImage();
+        G_Imagef charDistFieldImg = charDistFieldTex->ToImage<float>();
 
         // charDistFieldImg.Resize(Vector2i(outputCharSize),
-        //                         G_Image::ResizeMode::Linear);
+        //                         ImageResizeMode::Linear);
         for (int y = 0; y < charDistFieldImg.GetHeight(); ++y)
         {
             for (int x = 0; x < charDistFieldImg.GetWidth(); ++x)
             {
                 Color color = charDistFieldImg.GetPixel(x,y);
-                color.a = 1.0f;
-                charDistFieldImg.SetPixel(x, y, color);
-                // float dist = color.b;
-                // charDistFieldImg.SetPixel(x,y, Color(dist, dist, dist, 1));
+                if (color.a == 1.0f)
+                {
+                    Vector2 offsetXY(color.r, color.g);
+                    float dist = offsetXY.Length();
+                    dist /= radius;
+                    charDistFieldImg.SetPixel(x,y, Color(dist, dist, dist,1));
+                }
+                else
+                {
+                    charDistFieldImg.SetPixel(x,y, Color::White);
+                }
             }
         }
-        charDistFieldImg.SaveToFile( Path("DistField_" + String(int(c)) + ".png") );
-        charDistFieldImages.PushBack(charDistFieldImg);
+        charDistFieldImg.Export( Path("DistField_" + String(int(c)) + ".png") );
+        charDistFieldImages.PushBack( charDistFieldImg.To<Byte>() );
 
         framebuffer.UnBind();
     }
@@ -144,7 +141,7 @@ int main(int argc, char **argv)
     G_Image fontDistFieldImg =
             G_FontSheetCreator::PackImages(charDistFieldImages, 0,
                                            &imageOutputRects);
-    fontDistFieldImg.SaveToFile( Path("FontDistField.png") );
+    fontDistFieldImg.Export( Path("FontDistField.png") );
 
     // Put every character in the final atlas
     SystemUtils::System("xdg-open DistField_65.png");
