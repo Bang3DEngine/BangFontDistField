@@ -1,5 +1,6 @@
 #include "Bang/Application.h"
 
+#include "Bang/File.h"
 #include "Bang/Mesh.h"
 #include "Bang/Scene.h"
 #include "Bang/G_Font.h"
@@ -28,21 +29,25 @@ int main(int argc, char **argv)
     Application app(argc, argv);
     app.CreateWindow();
 
-    constexpr int inputCharSize = 512;
-    constexpr int radius = inputCharSize / 4;
+    Path ttfPath = EPATH("Fonts/Ubuntu.ttf");
+    constexpr int loadCharSize = 512;
+    constexpr int radius = loadCharSize / 4;
     constexpr int outputCharSize = 128;
     constexpr float signedOffset = 0.25f;
+
+    G_Font *font = new G_Font();
+    font->SetLoadSize(loadCharSize);
+    font->Import(ttfPath);
+
     String chars = "";
-    chars += "A";//BCDEFGHIJKLMNOPQRSTUVWXYZ";
-    //chars += "abcdefghijklmnopqrstuvwxyz";
-    //chars += "012345689.,-;:_^-+*[]{}()?¿¡!%&/\\=>< ";
+    chars += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    chars += "abcdefghijklmnopqrstuvwxyz";
+    chars += "0123456789.,-;:_^-+*[]{}()?¿¡!%&/\\=><#@ ";
 
     const GL::Attachment color0 = GL::Attachment::Color0;
     const GL::Attachment color1 = GL::Attachment::Color1;
     const Array<GL::Attachment> colorArr0 = {color0};
     const Array<GL::Attachment> colorArr1 = {color1};
-
-    Path ttfPath = EPATH("Fonts/Ubuntu.ttf");
 
     Array<G_Image> charDistFieldImages;
     for (const char c : chars)
@@ -50,11 +55,9 @@ int main(int argc, char **argv)
         Debug_Log("Processing char '" << c << "'");
 
         G_Texture2D *charBitmap = new Texture2D();
-        if (!G_FontSheetCreator::LoadAtlasTexture(ttfPath, inputCharSize,
-                                                  charBitmap, nullptr,
-                                                  nullptr, nullptr,
-                                                  String(c),
-                                                  radius + 1))
+        if (!G_FontSheetCreator::LoadAtlasTexture(font->GetTTFFont(),
+                                                  charBitmap, String(c),
+                                                  nullptr, radius + 1))
         {
             Debug_Error("Could not load atlas texture '" << ttfPath << "' for char"
                         "'" << c << "'.");
@@ -73,7 +76,7 @@ int main(int argc, char **argv)
         ImageEffects::Outline(charBitmapImg, &charOutlineImg);
 
         Texture2D charOutline;
-        charOutline.LoadFromImage(charOutlineImg);
+        charOutline.Import(charOutlineImg);
         // charOutlineImg.Export( Path("Outline.png") );
 
         framebuffer.ClearColor(Color::Zero);
@@ -142,7 +145,19 @@ int main(int argc, char **argv)
     G_Image fontDistFieldImg =
             G_FontSheetCreator::PackImages(charDistFieldImages, 0,
                                            &imageOutputRects);
-    fontDistFieldImg.Export( Path("FontDistField.png") );
+
+    String fileName = ttfPath.GetName() + "_DistField";
+    fontDistFieldImg.Export( Path(fileName).AppendExtension("png") );
+
+    XMLNode xmlInfo;
+    for (int i = 0; i < chars.Size(); ++i)
+    {
+        const char c = chars[i];
+        xmlInfo.Set("CharRect_" + String(int(c)), imageOutputRects[i]);
+    }
+    xmlInfo.Set("LoadSize", font->GetLoadSize());
+    xmlInfo.Set("SignedOffset", signedOffset);
+    File::Write(Path(fileName).AppendExtension("info"), xmlInfo.ToString());
 
     // Put every character in the final atlas
     SystemUtils::System("xdg-open DistField_65.png");
