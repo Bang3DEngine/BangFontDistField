@@ -31,10 +31,11 @@ int main(int argc, char **argv)
     constexpr int inputCharSize = 512;
     constexpr int radius = inputCharSize / 4;
     constexpr int outputCharSize = 128;
+    constexpr float signedOffset = 0.25f;
     String chars = "";
-    chars += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    chars += "abcdefghijklmnopqrstuvwxyz";
-    chars += "012345689.,-;:_^-+*[]{}()?¿¡!%&/\\=>< ";
+    chars += "A";//BCDEFGHIJKLMNOPQRSTUVWXYZ";
+    //chars += "abcdefghijklmnopqrstuvwxyz";
+    //chars += "012345689.,-;:_^-+*[]{}()?¿¡!%&/\\=>< ";
 
     const GL::Attachment color0 = GL::Attachment::Color0;
     const GL::Attachment color1 = GL::Attachment::Color1;
@@ -63,19 +64,17 @@ int main(int argc, char **argv)
 
         G_Framebuffer framebuffer(charSize.x, charSize.y);
         framebuffer.Bind();
-        framebuffer.CreateColorAttachment(GL::Attachment::Color0,
-                                          GL::ColorFormat::RGBA_Float32);
-        framebuffer.CreateColorAttachment(GL::Attachment::Color1,
-                                          GL::ColorFormat::RGBA_Float32);
+        framebuffer.CreateColorAttachment(color0, GL::ColorFormat::RGBA_Float16);
+        framebuffer.CreateColorAttachment(color1, GL::ColorFormat::RGBA_Float16);
         framebuffer.SetAllDrawBuffers();
 
-        G_Image charOutlineImg;
-        G_Image charBitmapImg = charBitmap->ToImage(false);
+        G_ImageG<Byte> charOutlineImg;
+        G_ImageG<Byte> charBitmapImg = charBitmap->ToImage(false);
         ImageEffects::Outline(charBitmapImg, &charOutlineImg);
 
         Texture2D charOutline;
         charOutline.LoadFromImage(charOutlineImg);
-        charOutlineImg.Export( Path("Outline.png") );
+        // charOutlineImg.Export( Path("Outline.png") );
 
         framebuffer.ClearColor(Color::Zero);
 
@@ -111,8 +110,6 @@ int main(int argc, char **argv)
                     framebuffer.GetCurrentDrawAttachments().Front());
         G_Imagef charDistFieldImg = charDistFieldTex->ToImage<float>();
 
-        // charDistFieldImg.Resize(Vector2i(outputCharSize),
-        //                         ImageResizeMode::Linear);
         for (int y = 0; y < charDistFieldImg.GetHeight(); ++y)
         {
             for (int x = 0; x < charDistFieldImg.GetWidth(); ++x)
@@ -121,8 +118,11 @@ int main(int argc, char **argv)
                 if (color.a == 1.0f)
                 {
                     Vector2 offsetXY(color.r, color.g);
-                    float dist = offsetXY.Length();
-                    dist /= radius;
+                    float dist = offsetXY.Length() / radius;
+                    bool isInterior = (charBitmapImg.GetPixel(x,y).a > 0);
+                    if (isInterior) { dist = -dist; }
+                    dist += signedOffset;
+                    dist = Math::Clamp(dist, 0.0f, 1.0f);
                     charDistFieldImg.SetPixel(x,y, Color(dist, dist, dist,1));
                 }
                 else
@@ -131,7 +131,8 @@ int main(int argc, char **argv)
                 }
             }
         }
-        charDistFieldImg.Export( Path("DistField_" + String(int(c)) + ".png") );
+        charDistFieldImg.Resize(Vector2i(outputCharSize), ImageResizeMode::Linear);
+        charDistFieldImg.Export( Path("DistField_" + String(int(c)) + "s.png") );
         charDistFieldImages.PushBack( charDistFieldImg.To<Byte>() );
 
         framebuffer.UnBind();

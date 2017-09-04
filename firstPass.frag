@@ -10,6 +10,7 @@ void main()
 
     vec4 outlineColor = texture2D(OutlineTex, uv);
     bool isOutline = outlineColor.a > 0;
-    gl_FragColor = vec4(0, 0, 0, isOutline ? 1 : 0);
+    if (isOutline) { gl_FragColor = vec4(0, 0, 0, 1); }
+    else { gl_FragColor = vec4(vec3(999999), 0); }
 }
 
