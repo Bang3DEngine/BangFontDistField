@@ -1,7 +1,6 @@
 #version 130
 
 uniform vec2 ImgSize;
-uniform sampler2D OutlineTex;
 uniform sampler2D DistField;
 
 void main()

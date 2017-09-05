@@ -17,13 +17,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 
 set(BANG_ROOT /home/sephirot47/Bang)
 include_directories(${BANG_ROOT}/include)
-include_directories(${BANG_ROOT}/include/Bang)
-include_directories(${BANG_ROOT}/include/Bang/BangCore)
-include_directories(${BANG_ROOT}/include/Bang/BangEngine)
-include_directories(${BANG_ROOT}/include/Bang/BangGraphics)
-include_directories(${BANG_ROOT}/include/Bang/BangPreprocessor)
 
 link_directories(${BANG_ROOT}/bin/Debug/lib)
+link_directories(${BANG_ROOT}/bin/Release/lib)
 link_libraries("Bang")
 
 add_executable(BangFontDistField
